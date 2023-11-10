@@ -10,16 +10,26 @@ const unsigned N = 20; // POP_SIZE
 const unsigned N_FM = 20; // number of flames to preserve at each iteration
 const unsigned MAX_ITER = 100;
 
-float* init_vector(){
+float* alloc_vector() {
     return (float *) malloc(n * sizeof(float));
+}
+
+void init_vector(float *v) {
+    int i = 0;
+    int lower_bound = -100;
+    int upper_bound = 100;
+    for (i = 0; i < n; i++) 
+        v[i] = lower_bound + (upper_bound - lower_bound) * random_number();
 }
 
 float** init_matrix() {
     float **matrix = (float **) malloc(N * sizeof(float *));
     
     unsigned i = 0;
-    for (i = 0; i < N; i++)
-        matrix[i] = init_vector();
+    for (i = 0; i < N; i++) {
+        matrix[i] = alloc_vector();
+        init_vector(matrix[i]);
+    }
 
     return matrix;
 }
@@ -31,7 +41,7 @@ double random_number() {
 }
 
 float* vector_vector_sum(float *v1, float *v2) {
-    float *res = init_vector();
+    float *res = alloc_vector();
     int i = 0;
 
     for (i = 0; i < n; i++)
@@ -65,7 +75,7 @@ float t_update(unsigned curr_iter) {
 float* moth_movement(float **X, float **FM, unsigned N_FM, unsigned i) {
     float b = 1.0;
     float t = t_update(i);
-    float *movement = init_vector();
+    float *movement = alloc_vector();
     float offset = 0;
     offset = delta_distance(X[i], FM[i]) * exp(b * t) * cos((double)(2 * t * M_PI));
 
@@ -83,13 +93,23 @@ unsigned n_fm_update(float n_fm, unsigned curr_iter) {
     return round(n_fm - curr_iter * (n_fm - 1) / MAX_ITER);
 }
 
+void compute_fitness(float* FIT_FM, double (*fitness_function)(double *vars, unsigned int nvars)) {
+    
+}
+
 int main() {
     float **X = init_matrix();
     float **FM = init_matrix();
-    float *Fit_X = init_vector();
-    float *Fit_FM = init_vector();
-    float n_fm = N_FM;
+    float *Fit_X = alloc_vector();
+    float *Fit_FM = alloc_vector();
+    unsigned n_fm = N_FM;
     unsigned curr_iter = 0;
+
+    while (curr_iter < MAX_ITER + 1) {
+        if (curr_iter > 1) 
+            n_fm = n_fm_update(n_fm, curr_iter);
+        
+    }
 
     return 0;
 }
