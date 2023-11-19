@@ -10,6 +10,8 @@ const unsigned N = 20; // POP_SIZE
 const unsigned N_FM = 20; // number of flames to preserve at each iteration
 const unsigned MAX_ITER = 100;
 
+double fitness_function(double *vars, unsigned int nvars);
+
 float* alloc_vector() {
     return (float *) malloc(n * sizeof(float));
 }
@@ -93,8 +95,11 @@ unsigned n_fm_update(float n_fm, unsigned curr_iter) {
     return round(n_fm - curr_iter * (n_fm - 1) / MAX_ITER);
 }
 
-void compute_fitness(float* FIT_FM, double (*fitness_function)(double *vars, unsigned int nvars)) {
-    
+void compute_fitness(float* fit_vec, float** MAT) {
+    int i = 0;
+    for (i = 0; i <n; i++) {
+        fit_vec[i] = (float) fitness_function(MAT[i], n);
+    }
 }
 
 int main() {
@@ -104,6 +109,9 @@ int main() {
     float *Fit_FM = alloc_vector();
     unsigned n_fm = N_FM;
     unsigned curr_iter = 0;
+
+    compute_fitness(Fit_X, X);
+    compute_fitness(Fit_FM, FM);
 
     while (curr_iter < MAX_ITER + 1) {
         if (curr_iter > 1) 
