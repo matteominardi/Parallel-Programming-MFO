@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <time.h>
+#include <mpi.h>
 
 #define NUM_DIMENSIONS 200000           // Define the number of dimensions (15 best)
 #define POPULATION_SIZE 210           // Define the population size (2 best) 
@@ -50,12 +51,10 @@ float n_flames_update(float n_fm, unsigned curr_iter) {
 
 double population_update(double previous, double beta, double flame) {
     return previous + beta * (flame - previous) + ALPHA * ((double)rand() / RAND_MAX - 0.5);
-    // return previous + beta * (flame - previous) * cos((double)(2 * log(beta) * M_PI)
 }
 
 double beta_update(int iteration) {
     return BETA_INIT * exp(-iteration / (double)MAX_ITERATIONS); // Change iteration to double for accurate division
-    // return BETA_INIT * my_exp(((-iteration / (double)MAX_ITERATIONS) - 1) * rand() + 1); // Update of old version in mfo.c seems to not be working
 }
 
 int main() {
