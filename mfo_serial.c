@@ -3,11 +3,11 @@
 #include <math.h>
 #include <time.h>
 
-#define NUM_DIMENSIONS 15           // Define the number of dimensions (15 best)
-#define POPULATION_SIZE 2           // Define the population size (2 best) 
+#define NUM_DIMENSIONS 200000           // Define the number of dimensions (15 best)
+#define POPULATION_SIZE 210           // Define the population size (2 best) 
 #define FIX_N_FLAMES 1              // Fix the number of flames or not (0 = no, 1 = yes) 
-#define LOWER_BOUND -2.0            // Lower bound for the search space
-#define UPPER_BOUND 2.0             // Upper bound for the search space
+#define LOWER_BOUND -20.0            // Lower bound for the search space
+#define UPPER_BOUND 20.0             // Upper bound for the search space
 #define MAX_ITERATIONS 50           // Maximum number of iterations
 #define BETA_INIT 1.0               // Initial value of beta
 #define ALPHA 0.2                   // Constant alpha for moth movement
@@ -54,12 +54,17 @@ double population_update(double previous, double beta, double flame) {
 }
 
 double beta_update(int iteration) {
-    return BETA_INIT * my_exp(-iteration / (double)MAX_ITERATIONS); // Change iteration to double for accurate division
+    return BETA_INIT * exp(-iteration / (double)MAX_ITERATIONS); // Change iteration to double for accurate division
     // return BETA_INIT * my_exp(((-iteration / (double)MAX_ITERATIONS) - 1) * rand() + 1); // Update of old version in mfo.c seems to not be working
 }
 
 int main() {
     srand(time(NULL));
+
+    MPI_Init(NULL, NULL); 
+
+    double start, finish;
+    start = MPI_Wtime();
  
     // Initialize population
     double population[POPULATION_SIZE][NUM_DIMENSIONS];
@@ -166,11 +171,13 @@ int main() {
 
         beta = beta_update(iteration);
     }
+    finish = MPI_Wtime();
 
     printf("\n\n");
-    printf("Best solution =");
-    print_solution(best_solution);
-    printf("\nBest fitness = %lf\n", best_fitness);
+    printf("\nBest fitness = %lf\n", best_fitness);    
+    printf("\n\nTime elapsed: %lf", finish - start);
+
+    MPI_Finalize();
 
     return 0;
 }
