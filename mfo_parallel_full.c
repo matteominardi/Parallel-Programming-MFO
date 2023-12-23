@@ -40,6 +40,7 @@ void print_solution(double *position);
 // MFO functions
 void initialize_position(double *position) {
     int i = 0;
+    #pragma omp parallel for num_threads(NUM_DIMENSIONS)
     for (i = 0; i < NUM_DIMENSIONS; ++i) {
         position[i] = ((double)rand() / RAND_MAX) * (UPPER_BOUND - LOWER_BOUND) + LOWER_BOUND;
     }
@@ -59,12 +60,6 @@ double beta_update(int iteration) {
 
 int main() {
     srand(time(NULL));
-
-    MPI_Init(NULL, NULL); 
-
-    double start, finish;
-    start = MPI_Wtime();
- 
     // Initialize population
     double population[POPULATION_SIZE][NUM_DIMENSIONS];
     double flames[POPULATION_SIZE][NUM_DIMENSIONS];
@@ -72,19 +67,57 @@ int main() {
     double flames_fitness[POPULATION_SIZE];
     float n_flames = (float) POPULATION_SIZE;
     unsigned early_stopping_counter = 0;
-    double *best_solution;
-    double best_fitness = 0.0;
+
+    MPI_Init(NULL, NULL); 
+    
+    double start, finish;
+
+    int rank, num_processes;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &num_processes);
+    
+    if (rank == 0)
+        start = MPI_Wtime();
+
+    int chunk_size = POPULATION_SIZE / num_processes;
+    int extra = POPULATION_SIZE % num_processes;
+
+    // Divide the population among processes
+    int start_idx = rank * chunk_size;
+    int end_idx = start_idx + chunk_size;
+    if (rank == num_processes - 1) {
+        end_idx += extra; // Ensure the last process takes any remaining elements
+    }
+
+    int local_size = end_idx - start_idx;
+    int local_offset = start_idx;
+
+    double local_population[local_size][NUM_DIMENSIONS];
+    double local_flames[local_size][NUM_DIMENSIONS];
+    double local_fitness[local_size];
+    double local_flames_fitness[local_size];
+    double local_best_fitness;
 
     int i = 0;
-    for (i = 0; i < POPULATION_SIZE; ++i) {
-        initialize_position(population[i]);
-        fitness[i] = fitness_function(population[i]);
+    #pragma omp parallel for num_threads(local_size)
+    for (i = 0; i < local_size; ++i) {
+        // int global_index = local_offset + i;
+        // if (global_index >= POPULATION_SIZE) 
+        //     break; // Prevent accessing out-of-bound elements
+
+        initialize_position(local_population[i]);
+        local_fitness[i] = fitness_function(local_population[i]);
 
         int j = 0;
+        #pragma omp parallel for num_threads(NUM_DIMENSIONS)
         for (j = 0; j < NUM_DIMENSIONS; ++j) {
-            flames[i][j] = population[i][j];
+            local_flames[i][j] = local_population[i][j];
         }
-        flames_fitness[i] = fitness[i];
+        local_flames_fitness[i] = local_fitness[i];
+
+        if (i == 0 || local_fitness[i] < local_best_fitness) {
+            local_best_fitness = local_fitness[i];
+        }
     }
 
     double beta = BETA_INIT;
@@ -92,44 +125,47 @@ int main() {
     int iteration = 0;
     for (iteration = 0; iteration < MAX_ITERATIONS; ++iteration) {
         int i = 0;
-        for (i = 0; i < POPULATION_SIZE; ++i) {
+        #pragma omp parallel for num_threads(local_size)
+        for (i = 0; i < local_size; ++i) {
             int j = 0;
+            #pragma omp parallel for num_threads(NUM_DIMENSIONS)
             for (j = 0; j < NUM_DIMENSIONS; ++j) {
-                population[i][j] = population_update(population[i][j], beta, flames[i][j]);
+                local_population[i][j] = population_update(local_population[i][j], beta, local_flames[i][j]);
                 
-                if (population[i][j] < LOWER_BOUND)
-                    population[i][j] = LOWER_BOUND;
-                else if (population[i][j] > UPPER_BOUND)
-                    population[i][j] = UPPER_BOUND;
+                if (local_population[i][j] < LOWER_BOUND)
+                    local_population[i][j] = LOWER_BOUND;
+                else if (local_population[i][j] > UPPER_BOUND)
+                    local_population[i][j] = UPPER_BOUND;
             }
 
-            double currentFitness = fitness_function(population[i]);
-            if (currentFitness < fitness[i]) {
-                fitness[i] = currentFitness;
+            double currentFitness = fitness_function(local_population[i]);
+            if (currentFitness < local_fitness[i]) {
+                local_fitness[i] = currentFitness;
                 int j = 0;
                 for (j = 0; j < NUM_DIMENSIONS; ++j)
-                    flames[i][j] = population[i][j];
-                flames_fitness[i] = currentFitness;
+                    local_flames[i][j] = local_population[i][j];
+                local_flames_fitness[i] = currentFitness;
             }
         }
 
-        double min_flame_fitness = fitness_function(flames[0]);
-        best_solution = flames[0];
+        double min_flame_fitness = fitness_function(local_flames[0]);
+        double *local_best_solution = local_flames[0];
         i = 1;
-        for (i = 1; i < POPULATION_SIZE; ++i) {
-            double current_fitness = fitness_function(flames[i]);
+        #pragma omp parallel for num_threads(local_size)
+        for (i = 1; i < local_size; ++i) {
+            double current_fitness = fitness_function(local_flames[i]);
             
-            if (current_fitness < min_flame_fitness) {
-                min_flame_fitness = current_fitness;
-                best_solution = flames[i];
-            } 
+            #pragma omp critical(critical_best_solution) {
+                if (current_fitness < min_flame_fitness) {
+                    min_flame_fitness = current_fitness;
+                    local_best_solution = local_flames[i];
+                } 
+            }
         }
 
-        if (iteration == 0) {
-            best_fitness = min_flame_fitness;
-        } else {
-            if (min_flame_fitness < best_fitness) {
-                best_fitness = min_flame_fitness;
+        if (iteration > 0) {
+            if (min_flame_fitness < local_best_fitness) {
+                local_best_fitness = min_flame_fitness;
 
                 if (EARLY_STOPPING == 1) {
                     early_stopping_counter = 0;
@@ -141,16 +177,16 @@ int main() {
             }
         }
 
-        printf("Iteration %d: Best Fitness Value = %lf\n", iteration + 1, min_flame_fitness);
+        printf("Process %d[%d, %d]: Iteration %d: Best Fitness Value = %lf\n", rank, start_idx, end_idx, iteration + 1, min_flame_fitness);
 
         if (EARLY_STOPPING == 1 && early_stopping_counter >= EARLY_STOPPING_PATIENCE) {
-            printf("Early stopping at iteration %d.\n", iteration);
+            printf("Process %d[%d, %d]: Early stopping at iteration %d.\n", rank, start_idx, end_idx, iteration);
             break;
         }
 
         if (FIX_N_FLAMES == 0) {
             if (POPULATION_SIZE > 1) {
-                int *sorted_indexes = argsort(flames_fitness, POPULATION_SIZE);
+                int *sorted_indexes = argsort(local_flames_fitness, local_size);
                 double n_flames_prev = n_flames;
                 n_flames = n_flames_update(n_flames, iteration);
                 
@@ -159,22 +195,44 @@ int main() {
                 }
 
                 int i = (int) n_flames;
-                for (i = (int) n_flames; i < POPULATION_SIZE; ++i) {
+                for (i = (int) n_flames; i < local_size; ++i) {
                     int j = 0;
+                    #pragma omp parallel for num_threads(NUM_DIMENSIONS)
                     for (j = 0; j < NUM_DIMENSIONS; ++j) {
-                        flames[sorted_indexes[i]][j] = flames[sorted_indexes[i-1]][j];
+                        local_flames[sorted_indexes[i]][j] = local_flames[sorted_indexes[i-1]][j];
                     }
                 }
             }
         }
 
-        beta = beta_update(iteration);
-    }
-    finish = MPI_Wtime();
+        if (rank == 0) {
+            beta = beta_update(iteration);
+            MPI_Bcast(&beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        } else {
+            MPI_Bcast(&beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        }
 
-    printf("\n\n");
-    printf("\nBest fitness = %lf\n", best_fitness);    
-    printf("\n\nTime elapsed: %lf", finish - start);
+        // Example: MPI_Barrier for synchronization at each iteration
+        MPI_Barrier(MPI_COMM_WORLD);
+    }
+
+    // MPI_Gather(local_population, local_size * NUM_DIMENSIONS, MPI_DOUBLE,
+    //            &(population[start_idx]), local_size * NUM_DIMENSIONS, MPI_DOUBLE,
+    //            0, MPI_COMM_WORLD);
+
+    // MPI_Gather(local_fitness, local_size, MPI_DOUBLE,
+    //            &(fitness[start_idx]), local_size, MPI_DOUBLE,
+    //            0, MPI_COMM_WORLD);
+
+    double global_min_fitness;
+    MPI_Allreduce(&local_best_fitness, &global_min_fitness, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+        finish = MPI_Wtime();
+        printf("\n\n");
+        printf("\nBest fitness = %lf\n", global_min_fitness);    
+        printf("\n\nTime elapsed: %lf", finish - start);
+    }
 
     MPI_Finalize();
 
@@ -286,9 +344,14 @@ double Ackley(double *position) {
 	double fitaux1 = 0.0, fitaux2 = 0.0, fitness = 0.0;
 	
 	int j = 0;
+    #pragma omp parallel for num_threads(NUM_DIMENSIONS)
 	for (j = 0; j < NUM_DIMENSIONS; ++j) {
-		fitaux1 += position[j] * position[j];
-		fitaux2 += cos(2 * M_PI * position[j]);
+        #pragma omp critical(critical_fitaux1) {
+		    fitaux1 += position[j] * position[j];
+        }
+        #pragma omp critical(critical_fitaux2) {
+		    fitaux2 += cos(2 * M_PI * position[j]);
+        }
 	}
 
 	fitness = -20 * exp(-0.2 * sqrt(fitaux1 / NUM_DIMENSIONS))
