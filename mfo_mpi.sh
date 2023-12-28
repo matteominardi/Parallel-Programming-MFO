@@ -6,5 +6,5 @@
 
 module load mpich-3.2
 cd $PBS_O_WORKDIR
-mpicc -g -Wall -fopenmp -lm -o mfo mfo.c
-mpirun.actual -n 8 ./mfo
+mpicc -g -Wall -fopenmp -lm -o mfo_mpi mfo_mpi.c
+mpirun.actual -n 8 ./mfo_mpi
