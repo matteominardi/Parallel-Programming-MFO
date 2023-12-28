@@ -142,7 +142,6 @@ int main() {
             
             if (current_fitness < min_flame_fitness) {
                 min_flame_fitness = current_fitness;
-                // local_best_solution = local_flames[i];
             }             
         }
 
