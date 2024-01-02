@@ -91,17 +91,16 @@ int main() {
     double local_fitness[local_size];
     double local_best_fitness = INFINITY;
 
-    int total_threads = local_size / 2
+    int total_threads = local_size / 10;
 
     int thread_chunk_size = POPULATION_SIZE / (num_processes * total_threads);
-    int thread_extra = POPULATION_SIZE % (num_processes * total_threads); 
    
-    #pragma omp parallel num_threads(total_threads) shared(thread_chunk_size, thread_extra, local_population, local_flames, local_fitness, local_best_fitness)
+    #pragma omp parallel num_threads(total_threads) shared(thread_chunk_size, local_population, local_flames, local_fitness, local_best_fitness)
     {
         int thread_start_idx = (omp_get_thread_num()) * thread_chunk_size;
         int thread_end_idx = thread_start_idx + thread_chunk_size;
         if ((omp_get_thread_num()) == (total_threads - 1)) {
-            thread_end_idx += thread_extra; // Ensure the last thread takes any remaining elements
+            thread_end_idx = local_size; // Ensure the last thread takes any remaining elements
         }
 
         int i = thread_start_idx, j = 0; //private(i,j)
@@ -127,7 +126,7 @@ int main() {
         int iteration = 0;
         for (iteration = 0; iteration < MAX_ITERATIONS; ++iteration) {
             i = 0;
-            // #pragma omp for
+            #pragma omp for
             for (i = thread_start_idx; i < thread_end_idx; ++i) {
                 j = 0;
                 for (j = 0; j < NUM_DIMENSIONS; ++j) {
