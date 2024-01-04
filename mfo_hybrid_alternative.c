@@ -81,7 +81,7 @@ int main() {
     int start_idx = rank * chunk_size;
     int end_idx = start_idx + chunk_size;
     if (rank == num_processes - 1) {
-        end_idx += extra; // Ensure the last process takes any remaining elements
+        end_idx = POPULATION_SIZE; // Ensure the last process takes any remaining elements
     }
 
     int local_size = end_idx - start_idx;
