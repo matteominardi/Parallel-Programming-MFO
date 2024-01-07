@@ -75,13 +75,14 @@ int main() {
         start = MPI_Wtime();
 
     int chunk_size = POPULATION_SIZE / num_processes; 
-    int extra = POPULATION_SIZE % num_processes; 
 
     // Divide the population among processes and threads
     int start_idx = rank * chunk_size;
-    int end_idx = start_idx + chunk_size;
+    int end_idx = start_idx + 1;
     if (rank == num_processes - 1) {
         end_idx = POPULATION_SIZE; // Ensure the last process takes any remaining elements
+    } else {
+        end_idx = start_idx + chunk_size;
     }
 
     int local_size = end_idx - start_idx;
@@ -115,9 +116,11 @@ int main() {
                 local_flames[i][j] = local_population[i][j];
             }
             
-            if (local_fitness[i] < local_best_fitness) {
-                #pragma omp critical
-                local_best_fitness = local_fitness[i];
+            #pragma omp critical 
+            {
+                if (local_fitness[i] < local_best_fitness) {
+                    local_best_fitness = local_fitness[i];
+                }
             }
         }
 
