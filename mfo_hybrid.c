@@ -90,7 +90,7 @@ int main() {
     double local_flames[local_size][NUM_DIMENSIONS];
     double local_fitness[local_size];
     double local_flames_fitness[local_size];
-    double local_best_fitness;
+    double local_best_fitness = INFINITY;
 
     int i = 0;
     #pragma omp parallel for num_threads(local_size)
@@ -104,8 +104,11 @@ int main() {
         }
         local_flames_fitness[i] = local_fitness[i];
 
-        if (i == 0 || local_fitness[i] < local_best_fitness) {
-            local_best_fitness = local_fitness[i];
+        #pragma omp critical(critical_best_solution) 
+        {
+            if (i == 0 || local_fitness[i] < local_best_fitness) {
+                local_best_fitness = local_fitness[i];
+            }
         }
     }
 
