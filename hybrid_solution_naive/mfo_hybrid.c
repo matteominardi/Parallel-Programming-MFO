@@ -202,8 +202,7 @@ int main() {
             MPI_Bcast(&beta, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
         }
 
-        // Example: MPI_Barrier for synchronization at each iteration
-        MPI_Barrier(MPI_COMM_WORLD);
+        // MPI_Barrier(MPI_COMM_WORLD); not needed since MPI_Bcast is a collective operation
     }
 
     double global_min_fitness;
